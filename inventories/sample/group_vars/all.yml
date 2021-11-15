@@ -3,7 +3,7 @@
 server_hostname: "{{ domain_name }}"
 
 # Hostname the site will be accessible from
-site_hostname: "web01.example.com"
+site_hostname: "{{ domain_name }}"
 
 # Database setup
 # Variables will be passed to the MySql role
