@@ -33,3 +33,7 @@
 
     - role: wordpress2
       tags: wordpress
+
+  post_tasks:
+    - name: Clean up
+      import_tasks: cleanup.yml

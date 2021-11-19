@@ -1,0 +1,18 @@
+---
+- name: Clean up
+  file:
+    path: "{{ item }}"
+    state: absesnt
+  loop:
+    - roles/nginx
+    - roles/os
+    - roles/php
+    - roles/redis
+    - roles/wordpress
+    - roles/wordpress2
+    - requirements.yml
+    - test.yml
+    - setup.yml
+    - LICENSE
+    - README.md
+    - cleanup.yml

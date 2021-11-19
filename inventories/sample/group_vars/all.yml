@@ -55,3 +55,6 @@ wordpress_plugins:
 
 # Whether to enable nginx page caching
 nginx_page_caching_enabled: false
+
+customer_email: build@vpsnest.com
+

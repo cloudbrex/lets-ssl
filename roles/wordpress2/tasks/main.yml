@@ -17,7 +17,7 @@
   stat:
     path: /etc/letsencrypt/live/{{ wordpress_hostname }}
   register: certbot
-  tags: [ wordpress]
+  tags: [ wordpress ]
 
 - name: Permission certs so nginx can read them
   file:
@@ -99,7 +99,13 @@
     host: mail.smtp2go.com
     port: 2525
     username: hello@vpsnest.com
-    password: Zjh1ZWZ0cmdheXYw
+    password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          33393432343032326430303935386535636265663364643064623062373834353739323837663765
+          6139613361383931396333363635393834643365383632660a306564653035656631636530323663
+          32633966363665373662623031386234626464663838363931653633373233373032643433336464
+          6439303337636439610a373636643532393437666263303462303130646136626262646331616535
+          33346566363966363430356631333932386438386461303766363265396434656533
     from: hello@vpsnest.com
     to: "{{ customer_email }}" 
     subject: test email
