@@ -2,14 +2,13 @@
 - name: Clean up
   file:
     path: "{{ item }}"
-    state: absesnt
+    state: absent
   loop:
     - roles/nginx
     - roles/os
     - roles/php
     - roles/redis
     - roles/wordpress
-    - roles/wordpress2
     - requirements.yml
     - test.yml
     - setup.yml

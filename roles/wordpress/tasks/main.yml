@@ -1,26 +1,23 @@
 ---
-- name: Download wp-cli
-  get_url:
-    url: "{{ wordpress_wpcli_url }}"
-    dest: /usr/local/bin/wp-cli
-    mode: 0755
-  tags:
-    - wordpress_wpcli
+- name: Remove default site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
 
-- name: Template Wordpress Nginx config
-  template:
-    src: nginx_server.conf.j2
-    dest: /etc/nginx/sites-available/{{ wordpress_hostname }}
-  register: wordpress_nginx_config
-  tags:
-    - wordpress_nginx
+- name: Create installed directories
+  file:
+    state: directory
+    path: "{{ item }}"
+  loop:
+    - "{{ wordpress_root }}"
+    - "{{ wordpress_page_cache_path }}"
+  tags: [ wordpress ]
 
 - name: Check certbot certs exist
   stat:
     path: /etc/letsencrypt/live/{{ wordpress_hostname }}
   register: certbot
-  tags:
-    - wordpress_certbot_perms
+  tags: [ wordpress ]
 
 - name: Permission certs so nginx can read them
   file:
@@ -31,220 +28,89 @@
   with_items:
     - /etc/letsencrypt/archive
     - /etc/letsencrypt/live
-  tags:
-    - wordpress_certbot_perms
+  when: certbot.stat.exists == true
+  tags: [ wordpress ]
 
-- name: Create site directories
+- name: Download and unpack latest WordPress
+  unarchive:
+    src: https://wordpress.org/latest.tar.gz
+    dest: "{{ wordpress_root }}"
+    remote_src: yes
+    creates: "{{ wordpress_install_path }}"
+  tags: [ wordpress ]
+
+- name: Set up wp-config
+  template:
+    src: "wp-config.php.j2"
+    dest: "{{ wordpress_install_path }}/wp-config.php"
+  tags: [ wordpress ] 
+
+- name: Set ownership
   file:
+    path: "{{ wordpress_root }}"
     state: directory
-    path: "{{ item }}"
-  with_items:
-    - "{{ wordpress_install_path }}"
-    - "{{ wordpress_page_cache_path }}"
-  tags:
-    - wordpress_directories
-
-- name: Download Wordpress
-  command: >
-    wp-cli core download
-    --allow-root --no-color --path='{{ wordpress_install_path }}'
-    --locale='{{ wordpress_locale }}'
-  args:
-    creates: "{{ wordpress_install_path }}/index.php"
-  tags:
-    - wordpress_download
-
-- name: Generate wp-config.php
-  command: >
-    wp-cli core config
-    --allow-root --no-color --path='{{ wordpress_install_path }}'
-    --dbname={{ wordpress_database_name }} --dbuser={{ wordpress_database_username }} --dbpass={{ wordpress_database_password }}
-  args:
-    creates: "{{ wordpress_install_path }}/wp-config.php"
-  tags:
-    - wordpress_config
-    - wordpress_config_generate
-
-- name: Install Wordpress
-  command: >
-    wp-cli core install
-    --allow-root --no-color --path='{{ wordpress_install_path }}'
-    --url='{{ wordpress_url }}' --title='{{ wordpress_site_title }}'
-    --admin_name='{{ wordpress_admin_username }}'
-    --admin_email='{{ wordpress_admin_email }}'
-    --admin_password='{{ wordpress_admin_password }}'
-  tags:
-    - wordpress_install
-
-- name: Disable Wordpress Cron
-  command: >
-    wp-cli
-    --allow-root --no-color --path='{{ wordpress_install_path }}'
-    config set DISABLE_WP_CRON true --raw
-  tags:
-    - wordpress_config
-    - wordpress_config_cron
-
-- name: Enable cron via system cron.d
-  cron:
-    name: "Wordpress Cron"
-    minute: "5"
-    job: "/usr/local/bin/wp-cli --allow-root --no-color --path='{{ wordpress_install_path }}' cron event run --due-now >/dev/null 2>&1"
-  tags:
-    - wordpress_config
-    - wordpress_cron
-
-- name: Allow updates of plugins without FTP
-  command: >
-    wp-cli
-    --allow-root --no-color --path='{{ wordpress_install_path }}'
-    config set FS_METHOD 'direct'
-  tags:
-    - wordpress_config
-    - wordpress_config_fsmethod
-
-- name: Install plugins from Wordpress.org
-  command: >
-    wp-cli --allow-root --no-color --path='{{ wordpress_install_path }}'
-    plugin install {{ item }}
-  with_items: "{{ wordpress_plugins }}"
-  when: wordpress_plugins is defined
-  tags:
-    - wordpress_plugins
-    - wordpress_plugins_wordpress_org
-
-- name: Install themes from Wordpress.org
-  command: >
-    wp-cli --allow-root --no-color --path='{{ wordpress_install_path }}'
-    theme install {{ item }}
-  with_items: "{{ wordpress_themes }}"
-  when: wordpress_themes is defined
-  tags:
-    - wordpress_themes
-    - wordpress_themes_wordpress_org
-
-- name: Copy zip plugins
-  copy:
-    src: "{{ inventory_dir }}/files/plugins/{{ item }}.zip"
-    dest: "{{ wordpress_data_path }}/plugins/{{ item }}.zip"
-  with_items: "{{ wordpress_zip_plugins }}"
-  when: wordpress_zip_plugins is defined
-  tags:
-    - wordpress_plugins
-    - wordpress_plugins_zip_copy
-
-- name: Install zip plugins
-  command: >
-    wp-cli --allow-root --no-color --path='{{ wordpress_install_path }}' --force
-    plugin install {{ wordpress_data_path }}/plugins/{{ item }}.zip
-  with_items: "{{ wordpress_zip_plugins }}"
-  when: wordpress_zip_plugins is defined
-  tags:
-    - wordpress_plugins
-    - wordpress_plugins_zip_install
-
-- name: Copy zip themes
-  copy:
-    src: "{{ inventory_dir }}/files/themes/{{ item }}.zip"
-    dest: "{{ wordpress_data_path }}/themes/{{ item }}.zip"
-  with_items: "{{ wordpress_zip_themes }}"
-  when: wordpress_zip_themes is defined
-  tags:
-    - wordpress_themes
-    - wordpress_themes_zip_copy
-
-- name: Install zip themes
-  command: >
-    wp-cli --allow-root --no-color --path='{{ wordpress_install_path }}' --force
-    theme install {{ wordpress_data_path }}/themes/{{ item }}.zip
-  with_items: "{{ wordpress_zip_themes }}"
-  when: wordpress_zip_themes is defined
-  tags:
-    - wordpress_themes
-    - wordpress_themes_zip_install
-
-- name: Check directory ownership
-  file:
-    state: directory
-    path: "{{ wordpress_data_path }}"
+    recurse: yes
     owner: www-data
     group: www-data
-    recurse: yes
-  tags:
-    - wordpress_permissions
-    - wordpress_permissions_ownership
+  tags: [ wordpress ]
 
-- name: Check directory perms
-  shell: "find . -type d -exec chmod 0755 {} \\;"
-  args:
-    chdir: "{{ wordpress_data_path }}"
-  tags:
-    - wordpress_permissions
-    - wordpress_permissions_directory_perms
+- name: Set permissions for directories
+  shell: "/usr/bin/find {{ wordpress_install_path }}/ -type d -exec chmod 755 {} \\;"
+  tags: [ wordpress ]
 
-- name: Check file perms
-  shell: "find . -type f -exec chmod 0644 {} \\;"
-  args:
-    chdir: "{{ wordpress_data_path }}"
-  tags:
-    - wordpress_permissions
-    - wordpress_permissions_file_perms
+- name: Set permissions for files
+  shell: "/usr/bin/find {{ wordpress_install_path }}/ -type f -exec chmod 644 {} \\;"
+  tags: [ wordpress ]
 
-- name: Enable site
+- name: Template Wordpress Nginx config for port 80
+  template:
+    src: nginx_server.conf.j2
+    dest: /etc/nginx/sites-available/{{ wordpress_hostname }}_80
+  when: certbot.stat.exists == false
+  tags: [ wordpress ]
+
+- name: Template Wordpress Nginx config for port 443
+  template:
+    src: nginx_server_443.conf.j2
+    dest: /etc/nginx/sites-available/{{ wordpress_hostname }}_443
+  when: certbot.stat.exists == true
+  tags: [ wordpress ]
+
+- name: Enable site for port 80
   file:
-    src: /etc/nginx/sites-available/{{ wordpress_hostname }}
+    src: /etc/nginx/sites-available/{{ wordpress_hostname }}_80
     dest: /etc/nginx/sites-enabled/{{ wordpress_hostname }}
     state: link
-  register: site_symlink
-  when: certbot.stat.exists == "true"
-  tags:
-    - wordpress_nginx
+  when: certbot.stat.exists == false
+  notify: Reload Nginx
+  tags: [ wordpress ]
 
-- name: Reload nginx
-  systemd:
-    name: nginx
-    state: reloaded
-  when: site_symlink.changed or wordpress_nginx_config.changed
-  tags:
-    - wordpress_nginx
+- name: Enable site for port 443
+  file:
+    src: /etc/nginx/sites-available/{{ wordpress_hostname }}_443
+    dest: /etc/nginx/sites-enabled/{{ wordpress_hostname }}
+    state: link
+  when: certbot.stat.exists == true
+  notify: Reload Nginx
+  tags: [ wordpress ]
 
-- name: Copy database export
-  copy:
-    src: "{{ inventory_dir }}/files/database/{{ wordpress_database_export }}"
-    dest: "/tmp/{{ wordpress_database_export }}"
-  when: wordpress_database_export is defined
-  tags:
-    - wordpress_database_import
-
-- name: Drop existing database
-  community.mysql.mysql_db:
-    name: "{{ wordpress_database_name }}"
-    state: absent
-  when: wordpress_database_export is defined
-  tags:
-    - wordpress_database_import
-
-- name: Import Wordpress database
-  community.mysql.mysql_db:
-    name: "{{ wordpress_database_name }}"
-    state: import
-    target: "/tmp/{{ wordpress_database_export }}"
-  when: wordpress_database_export is defined
-  tags:
-    - wordpress_database_import
-
-- name: Upgrade Wordpress database
-  command: >
-    wp-cli --allow-root --no-color --path='{{ wordpress_install_path }}'
-    core update-db
-  when: wordpress_database_export is defined
-  tags:
-    - wordpress_database_import
-
-- name: Activate theme
-  command: >
-    wp-cli --allow-root --no-color --path='{{ wordpress_install_path }}'
-    theme activate {{ wordpress_activate_theme }}
-  when: wordpress_activate_theme is defined
-  tags:
-  - wordpress_themes_activate
+# - name: Send email to user to continue setup of wordpress
+#   mail:
+#     host: mail.smtp2go.com
+#     port: 2525
+#     username: hello@vpsnest.com
+#     password: !vault |
+#           $ANSIBLE_VAULT;1.1;AES256
+#           33393432343032326430303935386535636265663364643064623062373834353739323837663765
+#           6139613361383931396333363635393834643365383632660a306564653035656631636530323663
+#           32633966363665373662623031386234626464663838363931653633373233373032643433336464
+#           6439303337636439610a373636643532393437666263303462303130646136626262646331616535
+#           33346566363966363430356631333932386438386461303766363265396434656533
+#     from: hello@vpsnest.com
+#     to: "{{ customer_email }}" 
+#     subject: test email
+#     body: |
+#       Congratulations, WordPress is installed!!
+#       To configure your WordPress, please navigate to the below address:
+#       http://{{ server_hostname }}/wp-admin/install.php
+#   delegate_to: localhost

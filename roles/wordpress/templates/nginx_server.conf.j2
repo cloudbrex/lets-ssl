@@ -2,13 +2,10 @@
 fastcgi_cache_path {{ wordpress_page_cache_path }} levels=1:2 keys_zone={{ wordpress_hostname }}:{{ wordpress_page_cache_size }} inactive=60m;
 {% endif %}
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 80;
+    listen [::]:80;
 
     server_name {{ wordpress_hostname }};
-
-    ssl_certificate /etc/letsencrypt/live/{{ wordpress_server_hostname }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/{{ wordpress_server_hostname }}/privkey.pem;
 
     # access_log /var/log/nginx/{{ wordpress_hostname }}/access.log;
     # error_log /var/log/nginx/{{ wordpress_hostname }}/error.log;
@@ -58,11 +55,3 @@ server {
     }
 }
 
-server {
-    listen 80;
-    listen [::]:80;
-
-    server_name {{ wordpress_hostname }};
-
-    return 301 https://{{ wordpress_hostname }}$request_uri;
-}

@@ -31,7 +31,7 @@
       ignore_errors: yes
       tags: certbot
 
-    - role: wordpress2
+    - role: wordpress
       tags: wordpress
 
   post_tasks:
