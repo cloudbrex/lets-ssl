@@ -27,13 +27,9 @@ Additionally, it'll:
 
 ## Installation
 
-1. Create your own inventory: `cp -rfp inventories/sample inventories/my-cool-website`
+1. Run playbooks locally
 
-2. Review `group_vars/all.yml`. Change settings by overriding them in `inventories/my-cool-website/group_vars/all.yml`.
+2. Install the dependent roles and collections: `ansible-galaxy install -r requirements.yml`
 
-3. Update `inventories/my-cool-website/inventory` with your host's IP address.
-
-4. Install the dependent roles and collections: `ansible-galaxy install -r requirements.yml`
-
-5. Run it: `ansible-playbook -i inventories/my-cool-website/inventory setup.yml -b`# ansible-wordpress-ubuntu
+3. Run it: `ansible-playbook -become -i inventory setup.yml -b`# ansible-wordpress-ubuntu
 >>>>>>> 1608fd5... first commit
