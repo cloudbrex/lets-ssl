@@ -24,4 +24,5 @@
   systemd:
     name: nginx
     state: restarted
+    enabled: yes
   when: nginx_conf.changed or fastcgi_params.changed
